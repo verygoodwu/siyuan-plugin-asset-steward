@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { existsSync, cpSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, copyFileSync } from "fs";
 
 export default defineConfig({
   build: {
@@ -22,9 +22,13 @@ export default defineConfig({
       name: "copy-static",
       closeBundle() {
         for (const f of ["plugin.json", "README.md", "icon.png"]) {
-          if (existsSync(f)) cpSync(f, "dev/" + f);
+          if (existsSync(f)) copyFileSync(f, "dev/" + f);
         }
-        if (existsSync("i18n")) cpSync("i18n", "dev/i18n", { recursive: true });
+        if (existsSync("i18n")) {
+          // 注意：本机托管 Node 的 cpSync 递归会静默失败，必须逐文件复制
+          mkdirSync("dev/i18n", { recursive: true });
+          for (const f of readdirSync("i18n")) copyFileSync(`i18n/${f}`, `dev/i18n/${f}`);
+        }
       },
     },
   ],
