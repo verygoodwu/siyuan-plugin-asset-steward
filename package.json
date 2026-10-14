@@ -1,0 +1,18 @@
+{
+  "name": "siyuan-plugin-asset-steward",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc --noEmit && vite build",
+    "deploy": "npm run build && node scripts/deploy.mjs D:\\siyuan",
+    "devlink": "node scripts/devlink.mjs"
+  },
+  "dependencies": {
+    "siyuan": "^1.0.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.8"
+  }
+}

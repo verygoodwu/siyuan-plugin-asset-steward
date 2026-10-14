@@ -1,0 +1,5 @@
+node_modules/
+dev/
+package.zip
+*.log
+.DS_Store

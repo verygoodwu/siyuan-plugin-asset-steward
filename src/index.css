@@ -1,0 +1,86 @@
+.asm-panel { padding: 10px 12px; font-size: 13px; color: #37424e; }
+.asm-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.asm-kpi { background: #f5f7fa; border-radius: 8px; padding: 8px 10px; }
+.asm-kpi label { display: block; font-size: 11px; color: #7a8595; margin-bottom: 2px; }
+.asm-kpi b { font-size: 14px; }
+.asm-section h3 { font-size: 12.5px; color: #7a8595; margin: 12px 0 6px; font-weight: 600; }
+.asm-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.asm-row select, .asm-row input { flex: 1; min-width: 0; border: 1px solid #dfe3e8; border-radius: 6px; padding: 5px 8px; font-size: 12.5px; background: #fff; color: #37424e; }
+.asm-btn { background: #3b82f6; color: #fff; border: 0; border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 12.5px; white-space: nowrap; }
+.asm-btn:hover { background: #2f6fe0; }
+.asm-chips { display: flex; gap: 6px; margin-bottom: 8px; }
+.asm-chip { border: 1px solid #dfe3e8; background: #fff; border-radius: 999px; padding: 4px 14px; cursor: pointer; font-size: 12.5px; color: #37424e; }
+.asm-chip.on { background: #eaf1fe; border-color: #3b82f6; color: #2563eb; font-weight: 600; }
+.asm-table { width: 100%; border-collapse: collapse; }
+.asm-table td { padding: 5px 2px; border-bottom: 1px solid #f0f2f5; font-size: 12.5px; }
+.asm-table td small { display: block; color: #94a3b8; font-size: 11px; }
+.asm-table .num { text-align: right; white-space: nowrap; }
+.asm-ghead td { color: #7a8595; font-size: 11.5px; background: #fafbfd; }
+.asm-sub { float: right; color: #1c2430; font-weight: 600; }
+.asm-tag { display: inline-block; border-radius: 4px; font-size: 10.5px; padding: 0 5px; margin-right: 3px; }
+.asm-tag.r { background: #feecec; color: #dc2626; }
+.asm-tag.g { background: #e8f7ee; color: #16a34a; }
+.up { color: #16a34a; }
+.down { color: #dc2626; }
+.asm-dialog { padding: 14px; }
+
+/* ---------- Dock 打开完整界面按钮 ---------- */
+.asm-open-full { width: 100%; background: #eaf1fe; color: #2563eb; border: 1px solid #c7dbfc; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.asm-open-full:hover { background: #dbe8fd; }
+
+/* ---------- 完整界面（作用域 .asm-full） ---------- */
+.asm-full { display: flex; width: 100%; height: 100%; min-height: 100%; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f6f7f9; color: #1c2430; font-size: 14px; box-sizing: border-box; }
+.asm-full *, .asm-full *::before, .asm-full *::after { box-sizing: border-box; }
+.asm-full .side { width: 190px; background: #fff; border-right: 1px solid #e8ecf1; padding: 20px 12px; flex-shrink: 0; display: flex; flex-direction: column; }
+.asm-full .logo { font-size: 17px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+.asm-full .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; }
+.asm-full .nav { display: flex; flex-direction: column; gap: 4px; }
+.asm-full .nav button { border: 0; background: 0; text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: #7a8595; font-size: 14px; font-family: inherit; }
+.asm-full .nav button:hover { background: #f1f4f8; }
+.asm-full .nav button.active { background: #eaf1fe; color: #3b82f6; font-weight: 600; }
+.asm-full .foot { margin-top: auto; font-size: 11px; color: #94a3b8; line-height: 1.6; padding: 12px; }
+.asm-full .main { flex: 1; padding: 24px 28px; min-width: 0; overflow-y: auto; }
+.asm-full .page { display: none; }
+.asm-full .page.active { display: block; animation: asmFade .25s; }
+@keyframes asmFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+.asm-full h2 { font-size: 18px; margin: 0 0 16px; }
+.asm-full .grid { display: grid; gap: 14px; }
+.asm-full .card { background: #fff; border: 1px solid #e8ecf1; border-radius: 14px; padding: 18px; }
+.asm-full .card h3 { font-size: 13px; color: #7a8595; font-weight: 500; margin: 0 0 10px; }
+.asm-full .kpi { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+.asm-full .kpi small { font-size: 13px; font-weight: 500; color: #7a8595; margin-left: 6px; }
+.asm-full .up { color: #16a34a; }
+.asm-full .down { color: #dc2626; }
+.asm-full .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.asm-full .tag.g { background: #e8f9ee; color: #16a34a; }
+.asm-full .tag.r { background: #feecec; color: #dc2626; }
+.asm-full .tag.b { background: #eaf1fe; color: #2563eb; }
+.asm-full .tag.a { background: #fef4e0; color: #d97706; }
+.asm-full table { width: 100%; border-collapse: collapse; }
+.asm-full th { font-size: 12px; color: #7a8595; text-align: left; padding: 8px 10px; border-bottom: 1px solid #e8ecf1; font-weight: 500; }
+.asm-full td { padding: 10px; border-bottom: 1px solid #f1f4f8; }
+.asm-full tr:last-child td { border-bottom: 0; }
+.asm-full .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.asm-full .form-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+.asm-full select, .asm-full input[type=text], .asm-full input[type=number], .asm-full input[type=date] { padding: 8px 10px; border: 1px solid #dfe3e8; border-radius: 9px; background: #fbfcfe; font: inherit; color: #1c2430; outline: 0; }
+.asm-full select:focus, .asm-full input:focus { border-color: #3b82f6; }
+.asm-full input[type=number] { width: 130px; }
+.asm-full .btn { background: #3b82f6; color: #fff; border: 0; border-radius: 9px; padding: 9px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+.asm-full .btn:hover { filter: brightness(1.08); }
+.asm-full .btn.ghost { background: #eef2f7; color: #1c2430; }
+.asm-full .chip { padding: 7px 14px; border-radius: 20px; border: 1px solid #dfe3e8; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; color: #1c2430; }
+.asm-full .chip.on { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.asm-full .empty { color: #94a3b8; text-align: center; padding: 20px; font-size: 13px; }
+.asm-full .dot-lg { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.asm-full canvas { max-width: 100%; }
+.asm-full .ibtn { width: 28px; height: 28px; border: 1px solid #dfe3e8; background: #fbfcfe; border-radius: 8px; cursor: pointer; font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.asm-full .ibtn:hover { background: #eaf1fe; border-color: #3b82f6; }
+.asm-full .ibtn.add { width: auto; padding: 0 10px; font-weight: 700; color: #3b82f6; }
+.asm-full .switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; display: inline-block; }
+.asm-full .switch input { opacity: 0; width: 0; height: 0; }
+.asm-full .switch span { position: absolute; inset: 0; background: #d6dbe2; border-radius: 20px; cursor: pointer; transition: .2s; }
+.asm-full .switch span::before { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: .2s; }
+.asm-full .switch input:checked + span { background: #22c55e; }
+.asm-full .switch input:checked + span::before { transform: translateX(16px); }
+.asm-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 90; align-items: center; justify-content: center; }
+.asm-dlg { background: #fff; border-radius: 16px; padding: 22px; max-width: 92vw; }
