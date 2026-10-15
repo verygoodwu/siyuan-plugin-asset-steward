@@ -2,7 +2,7 @@
   "name": "asset-steward",
   "author": "verygoodwu",
   "url": "https://github.com/verygoodwu/siyuan-plugin-asset-steward",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAppVersion": "3.7.4",
   "backends": ["all"],
   "frontends": ["desktop", "desktop-window", "browser-desktop"],
@@ -20,6 +20,7 @@
     "default": "README.md",
     "zh-CN": "README.md"
   },
+  "preview": "preview.png",
   "icon": "icon.png",
   "keywords": [
     "记账",
