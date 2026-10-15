@@ -2,7 +2,7 @@
   "name": "asset-steward",
   "author": "verygoodwu",
   "url": "https://github.com/verygoodwu/siyuan-plugin-asset-steward",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "3.7.4",
   "backends": ["all"],
   "frontends": ["desktop", "desktop-window", "browser-desktop"],
@@ -12,9 +12,9 @@
     "zh_CNT": "資產管家"
   },
   "description": {
-    "default": "Multi-device asset management & bookkeeping: five-group accounts (cash/investment/fixed/valuables/liabilities), transactions, plans (subscriptions, insurance, loans, savings), net-worth snapshots and spending diagnosis reports.",
-    "zh_CN": "多端资产管理与记账：账户五分组（现金流/投资/固定/贵重/负债）、流水、规划（订阅/保单/贷款/储蓄）、每日净资产快照与消费诊断报表。数据保存在思源，随同步多端可用。",
-    "zh_CNT": "多端資產管理與記賬：賬戶五分組、流水、規劃（訂閱/保單/貸款/儲蓄）、每日淨資產快照與消費診斷報表。數據保存在思源，隨同步多端可用。"
+    "default": "Multi-device asset management & bookkeeping: grouped accounts, transactions, plans and daily net-worth snapshots.",
+    "zh_CN": "多端资产管理与记账：账户分组、流水、订阅/保单/贷款/储蓄规划与每日净资产快照。",
+    "zh_CNT": "多端資產管理與記賬：賬戶分組、流水、訂閱/保單/貸款/儲蓄規劃與每日淨資產快照。"
   },
   "readme": {
     "default": "README.md",
