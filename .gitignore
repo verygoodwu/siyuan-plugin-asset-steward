@@ -3,3 +3,5 @@ dev/
 package.zip
 *.log
 .DS_Store
+.playwright-cli/
+.pw-mobile.json

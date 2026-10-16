@@ -5,7 +5,7 @@
   "version": "1.0.3",
   "minAppVersion": "3.7.4",
   "backends": ["all"],
-  "frontends": ["desktop", "desktop-window", "browser-desktop"],
+  "frontends": ["desktop", "desktop-window", "browser-desktop", "mobile", "browser-mobile"],
   "displayName": {
     "default": "Asset Steward",
     "zh_CN": "资产管家",

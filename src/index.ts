@@ -4,11 +4,13 @@ import {
     AppState, STORAGE_NAME, normalizeState, newSeedState, today,
 } from "./state";
 import { mountFull, FullHost } from "./full";
+import { mountMobile } from "./mobile";
 
 export default class AssetStewardPlugin extends Plugin {
     private state: AppState = newSeedState();
     private dockEl: HTMLElement | null = null;
     private fullEl: HTMLElement | null = null;
+    private mobEl: HTMLElement | null = null;
     private bootAt = Date.now();
 
     async onload() {
@@ -32,6 +34,119 @@ export default class AssetStewardPlugin extends Plugin {
         this.recordSnap();
         await this.saveAll();
 
+        const isMobile = !!(window.siyuan as any).mobile;
+        if (isMobile) {
+            this.onloadMobile();
+        } else {
+            this.onloadDesktop();
+        }
+    }
+
+    /* ================= 移动端入口（v1.1.0 M1） ================= */
+    private onloadMobile() {
+        const self = this;
+
+        // 手机全屏 Tab：记账 + 总览/流水占位（M1/M2）
+        this.addTab({
+            type: "assetMobile",
+            init() {
+                self.mobEl = this.element as HTMLElement;
+                mountMobile(self.mobEl, {
+                    state: self.state,
+                    save: () => self.saveAll(),
+                    toast: (msg, type) => showMessage(msg, 3000, (type as any) || "info"),
+                });
+            },
+            destroy() { self.mobEl = null; },
+        });
+
+        // 手机顶栏钱包图标：直接打开全屏 Tab
+        // （SDK 类型把 addToolbarItem 标为 protyle 的 IMenuItem，运行时手机内核
+        //   实际接受 name/icon/label/click，这里按运行时行为调用）
+        // onload 是异步的（await loadData/saveAll 之后才注册），可能错过内核的
+        // 顶栏收集时机，因此在 onLayoutReady 再补注册并带重试兜底。
+        this.registerMobileToolbar();
+
+        // 手机侧滑面板（addDock 手机自动走 mobileModel）：提供总入口
+        this.addDock({
+            config: {
+                position: "RightBottom",
+                size: { width: 360, height: 300 },
+                icon: "iconAssetSteward",
+                title: "资产管家",
+                hotkey: "",
+            },
+            data: {},
+            type: "assetDock",
+            init() {
+                const el = this.element as HTMLElement;
+                self.dockEl = el;
+                el.innerHTML = `
+                <div class="asm-panel" style="padding:16px;text-align:center">
+                  <div style="font-size:28px;margin:14px 0 6px">📊</div>
+                  <div style="font-weight:700;margin-bottom:4px">资产管家</div>
+                  <div style="font-size:12px;color:#7a8595;line-height:1.7;margin-bottom:14px">
+                    同一账本，多端同步<br>手机端支持快速记账（更多能力陆续开放）
+                  </div>
+                  <button class="asm-open-full" data-role="openM">打开资产管家</button>
+                </div>`;
+                const btn = el.querySelector("[data-role=openM]") as HTMLElement;
+                if (btn) btn.addEventListener("click", () => self.openMobileTab());
+            },
+            destroy() { self.dockEl = null; },
+        });
+    }
+
+    /** 注册手机顶栏「记一笔」按钮；若尚未被内核收集则带重试兜底 */
+    private registerMobileToolbar() {
+        const self = this;
+        const doRegister = () => {
+            try {
+                if ((this as any).topBarIcons && (this as any).topBarIcons.some((i: any) => i && i.name === "asmQuickAdd")) return true;
+                this.addToolbarItem({
+                    name: "asmQuickAdd",
+                    icon: "iconAssetSteward",
+                    label: "记一笔",
+                    click: () => this.openMobileTab(),
+                } as any);
+                return ((this as any).topBarIcons || []).some((i: any) => i && i.name === "asmQuickAdd");
+            } catch (e) {
+                console.warn("[资产管家] 顶栏注册重试", e);
+                return false;
+            }
+        };
+        if (doRegister()) return;
+        let n = 0;
+        const t = window.setInterval(() => {
+            if (doRegister() || ++n > 30) window.clearInterval(t);
+        }, 400);
+    }
+
+    onLayoutReady() {
+        // 移动端补注册顶栏按钮（onload 异步时序兜底）
+        if ((window.siyuan as any).mobile) this.registerMobileToolbar();
+    }
+
+    private openMobileTab() {
+        if (this.mobEl && this.mobEl.isConnected) return; // 已打开，避免重复堆叠
+        try {
+            (openTab as any)({
+                app: this.app,
+                custom: {
+                    type: "assetMobile",
+                    id: this.name + "assetMobile",
+                    icon: "iconAssetSteward",
+                    title: "资产管家",
+                },
+            });
+        } catch (e) {
+            console.error("[资产管家] 打开移动端界面失败", e);
+            showMessage("资产管家：打开失败 " + (e as Error).message, 4000, "error");
+        }
+    }
+
+    /* ================= 桌面端入口（v1.0 全量，保持不变） ================= */
+    private onloadDesktop() {
         const self = this;
 
         // Dock 图标 = 完整界面开关。
@@ -113,6 +228,7 @@ export default class AssetStewardPlugin extends Plugin {
     onunload() {
         this.dockEl = null;
         this.fullEl = null;
+        this.mobEl = null;
     }
 
     /* ---------- 持久化 ---------- */
