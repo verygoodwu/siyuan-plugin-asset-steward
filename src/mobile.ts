@@ -1,20 +1,23 @@
 /* 资产管家 · 移动端界面（作用域 .asm-m）
- * M1：底部 Tab 壳 + 记一笔（全功能）；总览/流水在 M2 填充。
+ * 快速记账、基础总览与流水搜索，复用桌面账本及同步保护。
  * 数据层零改动：只读 H.state，写操作走与桌面端相同的字段约定。
  */
 import { AppState, Tx, today } from "./state";
+import type { FullView } from "./full";
 
 export interface MobileHost {
     state: AppState;
-    save: () => void;
+    save: () => Promise<boolean>;
     toast: (msg: string, type?: string) => void;
+    canMutate?(): boolean;
+    onIdle?(): void;
 }
 
 function esc(s: string): string {
     return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function money(v: number): string {
-    return "¥" + Math.abs(v).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+    return (v < 0 ? "-" : "") + "¥" + Math.abs(v).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 }
 /** 每日净值快照（与桌面 recordSnap 同逻辑，按日期去重） */
 function upsertSnap(s: AppState) {
@@ -33,8 +36,10 @@ const TABS: [string, string, string][] = [
     ["more", "⚙️", "更多"],
 ];
 
-export function mountMobile(el: HTMLElement, H: MobileHost) {
+export function mountMobile(el: HTMLElement, H: MobileHost): FullView {
     const S = H.state;
+    const lifetime = new AbortController();
+    let busy = false, clean = "";
 
     el.innerHTML = `
     <div class="asm-m">
@@ -71,22 +76,14 @@ export function mountMobile(el: HTMLElement, H: MobileHost) {
 
         <!-- ========= 总览（M2） ========= -->
         <div class="asm-m-page" data-p="dash">
-          <div class="asm-m-empty">
-            <div class="big">📊</div>
-            <b>总览简版</b>
-            <div>净资产 · 本月收支 · 今日待办<br>将在 v1.1.0 M2 提供</div>
-            <div class="mini">当前净资产：<b data-role="mNet"></b></div>
-          </div>
+          <h3>资产总览</h3><div class="asm-m-stats" data-role="stats"></div>
+          <h3>近期流水</h3><div data-role="recent"></div>
         </div>
 
         <!-- ========= 流水（M2） ========= -->
         <div class="asm-m-page" data-p="txs">
-          <div class="asm-m-empty">
-            <div class="big">🧾</div>
-            <b>流水查看</b>
-            <div>最近流水的卡片式列表与搜索<br>将在 v1.1.0 M2 提供</div>
-            <div class="mini">已记录 <b data-role="mTxCount">0</b> 笔流水</div>
-          </div>
+          <h3>流水查看</h3><input class="asm-m-in" data-role="search" aria-label="搜索流水" placeholder="搜索分类、备注或账户">
+          <p class="asm-m-muted" data-role="count"></p><div data-role="txs"></div>
         </div>
 
         <!-- ========= 更多 ========= -->
@@ -112,8 +109,8 @@ export function mountMobile(el: HTMLElement, H: MobileHost) {
         const k = (b as HTMLElement).dataset.tab;
         el.querySelectorAll(".asm-m-tabbar button").forEach(x => x.classList.toggle("on", x === b));
         el.querySelectorAll(".asm-m-page").forEach(p => p.classList.toggle("on", (p as HTMLElement).dataset.p === k));
-        refresh();
-    }));
+        summaries(); H.onIdle?.();
+    }, { signal: lifetime.signal }));
 
     /* ---------- 记账表单 ---------- */
     let curType: "支出" | "收入" = "支出";
@@ -134,31 +131,47 @@ export function mountMobile(el: HTMLElement, H: MobileHost) {
         catsEl.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
             curCat = (b as HTMLElement).dataset.c || "";
             catsEl.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
-        }));
+        }, { signal: lifetime.signal }));
     }
     function renderAccts() {
+        const selected = acctEl.value;
         acctEl.innerHTML = S.accounts.map(a => `<option value="${esc(a.name)}">${esc(a.name)}（${money(a.bal)}）</option>`).join("");
+        if (S.accounts.some(a => a.name === selected)) acctEl.value = selected;
         (q<HTMLDivElement>("noAcct")).style.display = S.accounts.length ? "none" : "block";
     }
-    function refresh() {
+    const formKey = () => JSON.stringify([curType, curCat, acctEl.value, dateEl.value]);
+    const cards = (items: Tx[]) => items.length ? items.map(tx => `<article class="asm-m-tx"><div><b>${esc(tx.c)}</b><span>${esc(tx.d)} · ${esc(tx.a)}</span><small>${esc(tx.n)}</small></div><strong class="${tx.v>=0?"up":"down"}">${money(tx.v)}</strong></article>`).join("") : '<p class="asm-m-muted">暂无匹配流水</p>';
+    function summaries() {
+        const monthly = S.txs.filter(tx => tx.d.startsWith(today().slice(0,7)));
+        const income = monthly.filter(tx=>tx.t==="收入").reduce((s,tx)=>s+tx.v,0);
+        const expense = -monthly.filter(tx=>tx.t==="支出").reduce((s,tx)=>s+tx.v,0);
+        const net = S.accounts.reduce((s,a)=>s+a.bal,0);
+        q("stats").innerHTML = [["净资产",net],["本月收入",income],["本月支出",expense]].map(([label,value])=>`<div><span>${label}</span><b>${money(Number(value))}</b></div>`).join("");
+        q("recent").innerHTML = cards(S.txs.slice(0,5));
+        const keyword = q<HTMLInputElement>("search").value.trim().toLowerCase();
+        const matches = S.txs.filter(tx=>!keyword||[tx.c,tx.n,tx.a,tx.d].join(" ").toLowerCase().includes(keyword));
+        q("count").textContent = `共 ${matches.length} 笔${matches.length>30?"，显示最近30笔":""}`;
+        q("txs").innerHTML = cards(matches.slice(0,30));
+    }
+    function refresh(discardDraft = false) {
+        const body = el.querySelector<HTMLElement>(".asm-m-body")!, top = body.scrollTop;
+        if (discardDraft) {amtEl.value="";noteEl.value="";dateEl.value=today();curType="支出";curCat="";
+            typeBtns.forEach(b=>b.classList.toggle("on",b.dataset.t===curType));}
         renderCats();
         renderAccts();
-        const net = S.accounts.reduce((s, a) => s + a.bal, 0);
-        const netEl = el.querySelector('[data-role="mNet"]') as HTMLElement | null;
-        if (netEl) netEl.textContent = money(net);
-        const cnt = el.querySelector('[data-role="mTxCount"]') as HTMLElement | null;
-        if (cnt) cnt.textContent = String(S.txs.length);
+        summaries(); clean = formKey(); body.scrollTop = top;
     }
 
     typeBtns.forEach(b => b.addEventListener("click", () => {
         curType = (b as HTMLElement).dataset.t as "支出" | "收入";
         typeBtns.forEach(x => x.classList.toggle("on", x === b));
         renderCats();
-    }));
+    }, {signal:lifetime.signal}));
 
-    q<HTMLButtonElement>("save").addEventListener("click", () => {
+    q<HTMLButtonElement>("save").addEventListener("click", async () => {
+        if (busy || H.canMutate?.() === false) return;
         const v = parseFloat(amtEl.value);
-        if (!v || v <= 0) { H.toast("请输入有效金额", "error"); return; }
+        if (!Number.isFinite(v) || v <= 0) { H.toast("请输入有效金额", "error"); return; }
         if (!acctEl.value) { H.toast("请先在桌面端「资产」页添加账户", "error"); return; }
         if (!curCat) { H.toast("暂无可用分类", "error"); return; }
         const tx: Tx = {
@@ -169,17 +182,22 @@ export function mountMobile(el: HTMLElement, H: MobileHost) {
             n: noteEl.value.trim() || "—",
             v: curType === "收入" ? Math.abs(v) : -Math.abs(v),
         };
+        const previous = JSON.parse(JSON.stringify(S)) as AppState;
+        const saveButton=q<HTMLButtonElement>("save"); busy=true;saveButton.disabled=true;saveButton.textContent="正在保存…";
         S.txs.unshift(tx);
         const acct = S.accounts.find(a => a.name === tx.a);
         if (acct) acct.bal += tx.v;
         upsertSnap(S);
-        H.save();
-        H.toast("已记账 " + money(v));
-        amtEl.value = "";
-        noteEl.value = "";
-        amtEl.blur();
-        refresh();
-    });
+        try {
+            if (!await H.save()) {Object.assign(S,previous);return;}
+            H.toast("已记账 " + money(v)); amtEl.value="";noteEl.value="";amtEl.blur();refresh();
+        } catch {Object.assign(S,previous);H.toast("保存失败，输入已保留，请重试","error");}
+        finally {busy=false;saveButton.disabled=false;saveButton.textContent="记一笔";}
+    }, {signal:lifetime.signal});
+    q("search").addEventListener("input",summaries,{signal:lifetime.signal});
+    el.addEventListener("focusout",()=>window.setTimeout(()=>{if(!lifetime.signal.aborted)H.onIdle?.();},0),{signal:lifetime.signal});
 
     refresh();
+    return {hasDraft:()=>busy||!!amtEl.value.trim()||!!noteEl.value.trim()||formKey()!==clean,
+        refresh,destroy:()=>lifetime.abort()};
 }

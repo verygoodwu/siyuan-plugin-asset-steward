@@ -21,7 +21,7 @@ export default defineConfig({
     {
       name: "copy-static",
       closeBundle() {
-        for (const f of ["plugin.json", "README.md", "icon.png", "preview.png"]) {
+        for (const f of ["plugin.json", "README.md", "LICENSE", "RELEASE_NOTES.md", "RELEASE_NOTES_CURRENT.md", "icon.png", "preview.png", "preview.jpg"]) {
           if (existsSync(f)) copyFileSync(f, "dev/" + f);
         }
         if (existsSync("i18n")) {

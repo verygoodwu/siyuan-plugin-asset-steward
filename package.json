@@ -1,18 +1,27 @@
 {
   "name": "siyuan-plugin-asset-steward",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc --noEmit && vite build",
     "deploy": "npm run build && node scripts/deploy.mjs D:\\siyuan",
-    "devlink": "node scripts/devlink.mjs"
+    "devlink": "node scripts/devlink.mjs",
+    "test": "node --test",
+    "test:browser": "node tests/sync-browser.mjs",
+    "test:mobile": "node tests/mobile-browser.mjs",
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "siyuan": "^1.0.8"
   },
   "devDependencies": {
+    "jszip": "3.10.1",
+    "playwright-core": "1.64.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.8"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

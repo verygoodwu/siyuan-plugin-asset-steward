@@ -1,17 +1,28 @@
-import { Plugin, Dialog, showMessage, openTab } from "siyuan";
+import { Plugin, Dialog, showMessage, openTab, getFrontend } from "siyuan";
 import "./index.css";
 import {
-    AppState, STORAGE_NAME, normalizeState, newSeedState, today,
+    AppState, STORAGE_NAME, newSeedState, today,
 } from "./state";
-import { mountFull, FullHost } from "./full";
+import { mountFull, FullHost, FullView } from "./full";
+import { StateSync, readWorkspaceState } from "./state-sync";
 import { mountMobile } from "./mobile";
 
 export default class AssetStewardPlugin extends Plugin {
     private state: AppState = newSeedState();
     private dockEl: HTMLElement | null = null;
     private fullEl: HTMLElement | null = null;
-    private mobEl: HTMLElement | null = null;
     private bootAt = Date.now();
+    private sync!: StateSync;
+    private fullView: FullView | null = null;
+    private mobileView: FullView | null = null;
+    private mobileEl: HTMLElement | null = null;
+    private mobileToolbarRegistered = false;
+    private mobileToolbarRetry: number | undefined;
+    private lifecycle = new AbortController();
+    private dockRetry: number | undefined;
+    private dockHookElement: HTMLElement | null = null;
+    private notice: HTMLElement | null = null;
+    private quickDialogOpen = false;
 
     async onload() {
         this.bootAt = Date.now();
@@ -27,125 +38,67 @@ export default class AssetStewardPlugin extends Plugin {
             `<rect x="18" y="18" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>`,
         );
         try {
-            this.state = normalizeState(await this.loadData(STORAGE_NAME));
+            this.sync = new StateSync(this.state, () => readWorkspaceState(this.name), async state => {
+                const response = await this.saveData(STORAGE_NAME, state);
+                if (response?.code) throw new Error("账本保存失败：" + response.code);
+            });
+            await this.sync.initialize();
+            await this.saveAll();
         } catch (e) {
-            console.error("[资产管家] 读取数据失败，使用初始数据", e);
+            console.error("[资产管家] 账本加载失败，停止写入", e);
+            showMessage("资产管家：账本未能安全加载，暂不允许保存", 6000, "error");
         }
-        this.recordSnap();
-        await this.saveAll();
 
-        const isMobile = !!(window.siyuan as any).mobile;
-        if (isMobile) {
-            this.onloadMobile();
-        } else {
-            this.onloadDesktop();
-        }
+        if (this.isMobile()) this.onloadMobile();
+        else this.onloadDesktop();
     }
 
-    /* ================= 移动端入口（v1.1.0 M1） ================= */
+    private isMobile() {
+        const frontend = typeof getFrontend === "function" ? getFrontend() : "";
+        return !!(window.siyuan as any)?.mobile || frontend === "mobile" || frontend === "browser-mobile";
+    }
+
     private onloadMobile() {
         const self = this;
-
-        // 手机全屏 Tab：记账 + 总览/流水占位（M1/M2）
-        this.addTab({
-            type: "assetMobile",
-            init() {
-                self.mobEl = this.element as HTMLElement;
-                mountMobile(self.mobEl, {
-                    state: self.state,
-                    save: () => self.saveAll(),
-                    toast: (msg, type) => showMessage(msg, 3000, (type as any) || "info"),
-                });
-            },
-            destroy() { self.mobEl = null; },
-        });
-
-        // 手机顶栏钱包图标：直接打开全屏 Tab
-        // （SDK 类型把 addToolbarItem 标为 protyle 的 IMenuItem，运行时手机内核
-        //   实际接受 name/icon/label/click，这里按运行时行为调用）
-        // onload 是异步的（await loadData/saveAll 之后才注册），可能错过内核的
-        // 顶栏收集时机，因此在 onLayoutReady 再补注册并带重试兜底。
+        this.addTab({ type: "assetMobile", init() {
+            self.mobileEl = this.element as HTMLElement;
+            self.mobileView?.destroy();
+            self.mobileView = mountMobile(self.mobileEl, {
+                ...self.fullHost(), save: () => self.saveAll()
+            });
+            self.updateSyncNotice();
+        }, destroy() { self.mobileView?.destroy(); self.mobileView = null; self.mobileEl = null; self.notice = null; } });
         this.registerMobileToolbar();
-
-        // 手机侧滑面板（addDock 手机自动走 mobileModel）：提供总入口
-        this.addDock({
-            config: {
-                position: "RightBottom",
-                size: { width: 360, height: 300 },
-                icon: "iconAssetSteward",
-                title: "资产管家",
-                hotkey: "",
-            },
-            data: {},
-            type: "assetDock",
-            init() {
-                const el = this.element as HTMLElement;
-                self.dockEl = el;
-                el.innerHTML = `
-                <div class="asm-panel" style="padding:16px;text-align:center">
-                  <div style="font-size:28px;margin:14px 0 6px">📊</div>
-                  <div style="font-weight:700;margin-bottom:4px">资产管家</div>
-                  <div style="font-size:12px;color:#7a8595;line-height:1.7;margin-bottom:14px">
-                    同一账本，多端同步<br>手机端支持快速记账（更多能力陆续开放）
-                  </div>
-                  <button class="asm-open-full" data-role="openM">打开资产管家</button>
-                </div>`;
-                const btn = el.querySelector("[data-role=openM]") as HTMLElement;
-                if (btn) btn.addEventListener("click", () => self.openMobileTab());
-            },
-            destroy() { self.dockEl = null; },
-        });
+        this.addDock({ config: {position:"RightBottom",size:{width:360,height:300},icon:"iconAssetSteward",title:"资产管家",hotkey:""}, data:{},type:"assetDock", init() {
+            const button = document.createElement("button"); button.className="asm-open-full";button.textContent="打开资产管家";
+            button.addEventListener("click",()=>self.openMobileTab(),{signal:self.lifecycle.signal});
+            this.element.replaceChildren(button);
+        } });
     }
 
-    /** 注册手机顶栏「记一笔」按钮；若尚未被内核收集则带重试兜底 */
+    onLayoutReady() { if (this.isMobile()) this.registerMobileToolbar(); }
+
     private registerMobileToolbar() {
-        const self = this;
-        const doRegister = () => {
+        if (this.mobileToolbarRegistered || this.lifecycle.signal.aborted) return;
+        const attempt = () => {
+            if (this.mobileToolbarRegistered || this.lifecycle.signal.aborted) return true;
             try {
-                if ((this as any).topBarIcons && (this as any).topBarIcons.some((i: any) => i && i.name === "asmQuickAdd")) return true;
-                this.addToolbarItem({
-                    name: "asmQuickAdd",
-                    icon: "iconAssetSteward",
-                    label: "记一笔",
-                    click: () => this.openMobileTab(),
-                } as any);
-                return ((this as any).topBarIcons || []).some((i: any) => i && i.name === "asmQuickAdd");
-            } catch (e) {
-                console.warn("[资产管家] 顶栏注册重试", e);
-                return false;
-            }
+                this.addToolbarItem({name:"asmQuickAdd",icon:"iconAssetSteward",label:"记一笔",click:()=>this.openMobileTab()} as any);
+                this.mobileToolbarRegistered = true;
+                return true;
+            } catch { return false; }
         };
-        if (doRegister()) return;
-        let n = 0;
-        const t = window.setInterval(() => {
-            if (doRegister() || ++n > 30) window.clearInterval(t);
-        }, 400);
-    }
-
-    onLayoutReady() {
-        // 移动端补注册顶栏按钮（onload 异步时序兜底）
-        if ((window.siyuan as any).mobile) this.registerMobileToolbar();
+        if (attempt() || this.mobileToolbarRetry !== undefined) return;
+        let retries = 0;
+        this.mobileToolbarRetry = window.setInterval(()=>{ if(attempt() || ++retries >= 30) {window.clearInterval(this.mobileToolbarRetry);this.mobileToolbarRetry=undefined;} },400);
     }
 
     private openMobileTab() {
-        if (this.mobEl && this.mobEl.isConnected) return; // 已打开，避免重复堆叠
-        try {
-            (openTab as any)({
-                app: this.app,
-                custom: {
-                    type: "assetMobile",
-                    id: this.name + "assetMobile",
-                    icon: "iconAssetSteward",
-                    title: "资产管家",
-                },
-            });
-        } catch (e) {
-            console.error("[资产管家] 打开移动端界面失败", e);
-            showMessage("资产管家：打开失败 " + (e as Error).message, 4000, "error");
-        }
+        if (this.mobileEl?.isConnected) return;
+        try { (openTab as any)({app:this.app,custom:{type:"assetMobile",id:this.name+"assetMobile",icon:"iconAssetSteward",title:"资产管家"}}); }
+        catch(e) {showMessage("资产管家：打开失败",4000,"error");console.error(e);}
     }
 
-    /* ================= 桌面端入口（v1.0 全量，保持不变） ================= */
     private onloadDesktop() {
         const self = this;
 
@@ -196,9 +149,11 @@ export default class AssetStewardPlugin extends Plugin {
             type: "assetFull",
             init() {
                 self.fullEl = this.element as HTMLElement;
-                mountFull(self.fullEl, self.fullHost());
+                self.fullView?.destroy();
+                self.fullView = mountFull(self.fullEl, self.fullHost());
+                self.updateSyncNotice();
             },
-            destroy() { self.fullEl = null; },
+            destroy() { self.fullView?.destroy(); self.fullView = null; self.fullEl = null; self.notice = null; },
         });
 
         // 顶栏：快速记一笔
@@ -226,19 +181,64 @@ export default class AssetStewardPlugin extends Plugin {
     }
 
     onunload() {
+        this.lifecycle.abort();
+        if (this.dockHookElement) delete this.dockHookElement.dataset.asmHooked;
+        this.dockHookElement = null;
+        window.clearInterval(this.dockRetry);
+        window.clearInterval(this.mobileToolbarRetry);
+        this.fullView?.destroy();
+        this.mobileView?.destroy(); this.mobileView = null; this.mobileEl = null;
+        this.fullView = null;
         this.dockEl = null;
         this.fullEl = null;
-        this.mobEl = null;
     }
 
     /* ---------- 持久化 ---------- */
     private async saveAll() {
         try {
-            await this.saveData(STORAGE_NAME, this.state);
+            this.recordSnap();
+            await this.sync.save();
+            this.updateSyncNotice();
+            return true;
         } catch (e) {
             console.error("[资产管家] 保存失败", e);
-            showMessage("资产管家：保存失败", 3000, "error");
+            showMessage("资产管家：" + (e as Error).message, 6000, "error");
+            this.updateSyncNotice();
+            return false;
         }
+    }
+
+    async onDataChanged() {
+        if (this.lifecycle.signal.aborted) return;
+        try {
+            const result = await this.sync.receive(() => !this.quickDialogOpen && !this.fullView?.hasDraft() && !this.mobileView?.hasDraft());
+            if (this.lifecycle.signal.aborted) return;
+            if (result === "applied") { this.fullView?.refresh(); this.mobileView?.refresh(); }
+            this.updateSyncNotice();
+        } catch (e) {
+            showMessage("资产管家：同步读取失败，已保留当前内容", 5000, "error");
+            console.error("[资产管家] 同步读取失败", e);
+        }
+    }
+
+    private updateSyncNotice() {
+        const root = this.fullEl || this.mobileEl;
+        if (!root) return;
+        if (!this.sync?.pending && this.sync?.ready) { this.notice?.remove(); this.notice = null; return; }
+        if (this.notice?.isConnected) return;
+        const notice = document.createElement("div");
+        notice.className = "asm-sync-notice";
+        const text = document.createElement("span");
+        text.textContent = this.sync?.ready ? "其他设备有更新，当前输入已保留。" : "账本尚未安全加载，已暂停保存。";
+        const button = document.createElement("button"); button.textContent = "加载同步更新";
+        button.addEventListener("click", async () => {
+            if (!window.confirm("加载其他设备的最新账本？当前未提交的输入和未保存修改将被放弃。")) return;
+            try { await this.sync.reload(); this.fullView?.refresh(true); this.mobileView?.refresh(true); this.updateSyncNotice(); }
+            catch { showMessage("读取失败，当前内容仍已保留", 5000, "error"); }
+        }, { signal: this.lifecycle.signal });
+        notice.append(text, button);
+        root.querySelector(".main,.asm-m-body")?.prepend(notice);
+        this.notice = notice;
     }
 
     private fullHost(): FullHost {
@@ -246,6 +246,13 @@ export default class AssetStewardPlugin extends Plugin {
             state: this.state,
             save: () => this.saveAll(),
             toast: (msg, type) => showMessage(msg, 3000, (type as any) || "info"),
+            canMutate: () => {
+                if (this.sync?.ready && !this.sync.pending) return true;
+                this.updateSyncNotice();
+                showMessage("请先加载同步更新；当前输入已保留", 4000, "info");
+                return false;
+            },
+            onIdle: () => { if (this.sync?.pending) void this.onDataChanged(); },
         };
     }
 
@@ -262,12 +269,13 @@ export default class AssetStewardPlugin extends Plugin {
         const tryBind = (): boolean => {
             const item = document.querySelector<HTMLElement>('.dock__item[data-type$="assetDock"]');
             if (item && !(item as any).dataset.asmHooked) {
+                this.dockHookElement = item;
                 (item as any).dataset.asmHooked = "1";
                 item.addEventListener("click", (e) => {
                     e.stopImmediatePropagation();
                     e.preventDefault();
                     this.toggleFullTab();
-                }, true);
+                }, { capture: true, signal: this.lifecycle.signal });
                 console.log("[资产管家] Dock 图标点击拦截已绑定");
                 return true;
             }
@@ -275,7 +283,7 @@ export default class AssetStewardPlugin extends Plugin {
         };
         if (tryBind()) return;
         let n = 0;
-        const t = window.setInterval(() => {
+        const t = this.dockRetry = window.setInterval(() => {
             if (tryBind() || ++n > 150) window.clearInterval(t);
         }, 200);
     }
@@ -362,7 +370,8 @@ export default class AssetStewardPlugin extends Plugin {
             const cat = form.querySelector('[data-role="cat"]') as HTMLSelectElement;
             cat.innerHTML = (this.state.cats[curType] || []).map(([, n]) => `<option>${n}</option>`).join("");
         }));
-        form.querySelector('[data-role="submit"]')!.addEventListener("click", () => {
+        form.querySelector('[data-role="submit"]')!.addEventListener("click", async () => {
+            if (!this.fullHost().canMutate?.()) return;
             const q = (r: string) => form.querySelector(`[data-role="${r}"]`) as HTMLInputElement | HTMLSelectElement;
             const v = parseFloat(q("amt").value);
             if (!v || v <= 0) { showMessage("请输入有效金额", 2500, "error"); return; }
@@ -379,17 +388,19 @@ export default class AssetStewardPlugin extends Plugin {
             const acct = this.state.accounts.find(a => a.name === tx.a);
             if (acct) acct.bal += tx.v;
             this.recordSnap();
-            this.saveAll();
+            if (!await this.saveAll()) return;
             showMessage("已记账 ¥" + Math.abs(v).toLocaleString(), 2000);
             onDone();
         });
     }
 
     private openQuickAdd() {
+        this.quickDialogOpen = true;
         const dlg = new Dialog({
             title: "资产管家 · 快速记一笔",
             content: `<div class="asm-dialog">${this.formHTML()}</div>`,
             width: "420px",
+            destroyCallback: () => { this.quickDialogOpen = false; if (this.sync.pending) void this.onDataChanged(); },
         });
         this.bindForm(dlg.element, () => dlg.destroy());
     }

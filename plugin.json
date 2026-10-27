@@ -2,10 +2,18 @@
   "name": "asset-steward",
   "author": "verygoodwu",
   "url": "https://github.com/verygoodwu/siyuan-plugin-asset-steward",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "minAppVersion": "3.7.4",
-  "backends": ["all"],
-  "frontends": ["desktop", "desktop-window", "browser-desktop", "mobile", "browser-mobile"],
+  "backends": [
+    "all"
+  ],
+  "frontends": [
+    "desktop",
+    "desktop-window",
+    "browser-desktop",
+    "mobile",
+    "browser-mobile"
+  ],
   "displayName": {
     "default": "Asset Steward",
     "zh_CN": "资产管家",

@@ -10,11 +10,26 @@ export interface FullHost {
     save(): void;
     toast(msg: string, type?: string): void;
     renderDock?(): void;
+    canMutate?(): boolean;
+    onIdle?(): void;
+}
+
+export interface FullView {
+    hasDraft(): boolean;
+    refresh(discardDraft?: boolean): void;
+    destroy(): void;
 }
 
 const esc = (s: any) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export function mountFull(el: HTMLElement, H: FullHost) {
+    const lifetime = new AbortController();
+    const listen = (type: string, handler: (event: Event) => void) => el.addEventListener(type, handler, { signal: lifetime.signal });
+    const cleanInputs = new WeakMap<Element, string>();
+    const inputValue = (input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => input instanceof HTMLInputElement && ["checkbox", "radio"].includes(input.type) ? String(input.checked) : input.value;
+    const captureInputs = () => el.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea").forEach(input => {
+        if (!cleanInputs.has(input)) cleanInputs.set(input, inputValue(input));
+    });
     const S = H.state;
     /* ---------- 页面内可变状态 ---------- */
     let curPg = "dash";
@@ -586,7 +601,6 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         if (S.snaps.length > 366) S.snaps = S.snaps.slice(-366);
     }
     function renderDash() {
-        recordSnap();
         const pg = $("as-p-dash")!;
         const asset = S.accounts.filter(a => a.bal > 0).reduce((s, a) => s + a.bal, 0);
         const liab = S.accounts.filter(a => a.bal < 0).reduce((s, a) => s + a.bal, 0);
@@ -797,15 +811,30 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         if (pg === "asset") renderAssetsPage();
         if (pg === "plan") renderPlanPage();
         if (pg === "report") renderReportPage();
+        captureInputs();
+        queueMicrotask(() => H.onIdle?.());
     }
 
     /* ---------- 事件委托 ---------- */
+    // A pending remote version must be loaded before any index-based mutation.
+    const guardAction = (event: Event) => {
+        const button = (event.target as HTMLElement).closest<HTMLElement>("[data-act],[data-inp]");
+        if (!button || !H.canMutate) return;
+        const action = button.dataset.act || button.dataset.inp || "";
+        if (["csv", "tpl", "pickCat", "pickEmoji", "catClose", "cancelIe", "iaCancel", "cancelLn", "cancelSv"].includes(action)) return;
+        if (["delClose", "depClose"].includes(action) && button.dataset.ok === "0") return;
+        if (!H.canMutate()) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const guardedClick = "click", guardedChange = "change";
+    el.addEventListener(guardedClick, guardAction, { capture: true, signal: lifetime.signal });
+    el.addEventListener(guardedChange, guardAction, { capture: true, signal: lifetime.signal });
+    listen("focusout", () => window.setTimeout(() => { if (!lifetime.signal.aborted) H.onIdle?.(); }, 0));
     // 侧边导航（委托到根元素，避免绑定时机早于骨架渲染导致失效）
-    el.addEventListener("click", (e: Event) => {
+    listen("click", (e: Event) => {
         const nb = (e.target as HTMLElement).closest("#as-nav button") as HTMLElement | null;
         if (nb && nb.dataset.pg) setPg(nb.dataset.pg);
     });
-    el.addEventListener("click", (e: Event) => {
+    listen("click", (e: Event) => {
         const t = (e.target as HTMLElement).closest("[data-act]") as HTMLElement | null;
         if (!t) return;
         const act = t.dataset.act!;
@@ -964,7 +993,7 @@ export function mountFull(el: HTMLElement, H: FullHost) {
             case "delSv": confirmDel(`删除储蓄计划「${S.savings[i].n}」？`, () => { S.savings.splice(i, 1); H.save(); renderPlanPage(); }); break;
         }
     });
-    el.addEventListener("change", (e: Event) => {
+    listen("change", (e: Event) => {
         const t = (e.target as HTMLElement).closest("[data-chg]") as HTMLElement | null;
         if (!t) return;
         const i = +t.dataset.i!;
@@ -976,18 +1005,18 @@ export function mountFull(el: HTMLElement, H: FullHost) {
             case "iaCredit": iaToggleCredit(); break;
         }
     });
-    el.addEventListener("input", (e: Event) => {
+    listen("input", (e: Event) => {
         const t = (e.target as HTMLElement).closest("[data-inp]") as HTMLElement | null;
         if (!t) return;
         if (t.dataset.inp === "ieCredit") ieToggleCredit();
         if (t.dataset.inp === "iaCredit") iaToggleCredit();
     });
     // 页内筛选
-    el.addEventListener("input", (e: Event) => {
+    listen("input", (e: Event) => {
         const t = e.target as HTMLElement;
         if (t.id === "as-f-kw") renderTxTable();
     });
-    el.addEventListener("change", (e: Event) => {
+    listen("change", (e: Event) => {
         const t = e.target as HTMLElement;
         if (t.id === "as-f-month" || t.id === "as-f-type") renderTxTable();
         if (t.id === "as-dep-amt" && (e as KeyboardEvent).key === "Enter") { /* noop */ }
@@ -998,13 +1027,39 @@ export function mountFull(el: HTMLElement, H: FullHost) {
 
     /* ---------- 容器尺寸变化 → 重绘当前页（Dock 面板展开/拖宽时图表才画得出来） ---------- */
     let lastW = 0, roTimer: number | undefined;
-    new ResizeObserver(() => {
+    const resize = new ResizeObserver(() => {
         const w = el.clientWidth;
         if (w === lastW) return;
         lastW = w;
         if (w > 0) {
             clearTimeout(roTimer);
-            roTimer = window.setTimeout(() => setPg(curPg), 120);
+            roTimer = window.setTimeout(() => {
+                // Forms need no JS repaint on resize; rebuilding them erased drafts.
+                if (curPg === "dash") renderDash();
+                if (curPg === "report") renderReportPage();
+            }, 120);
         }
-    }).observe(el);
+    });
+    resize.observe(el);
+    const inputObserver = new MutationObserver(captureInputs);
+    inputObserver.observe(el, { childList: true, subtree: true });
+    captureInputs();
+    return {
+        hasDraft() {
+            if (editing >= 0 || inlineEditIdx !== null || inlineAddGroup !== null || lnEditIdx !== null || svEditIdx !== null) return true;
+            if (el.querySelectorAll<HTMLElement>(".asm-mask").length && Array.from(el.querySelectorAll<HTMLElement>(".asm-mask")).some(mask => mask.style.display !== "none")) return true;
+            if (el.contains(document.activeElement) && document.activeElement?.matches("input,select,textarea")) return true;
+            return Array.from(el.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(".page.active input,.page.active select,.page.active textarea")).some(input => cleanInputs.has(input) && cleanInputs.get(input) !== inputValue(input));
+        },
+        refresh(discardDraft = false) {
+            if (discardDraft) { editing = -1; inlineEditIdx = null; inlineAddGroup = null; lnEditIdx = null; svEditIdx = null; delFn = null;
+                el.querySelectorAll<HTMLElement>(".asm-mask").forEach(mask => mask.style.display = "none"); }
+            const scrolls: [HTMLElement, number, number][] = [];
+            for (let parent: HTMLElement | null = el; parent; parent = parent.parentElement) scrolls.push([parent, parent.scrollTop, parent.scrollLeft]);
+            const main = el.querySelector<HTMLElement>(".main"); if (main) scrolls.push([main, main.scrollTop, main.scrollLeft]);
+            setPg(curPg);
+            for (const [element, top, left] of scrolls) { element.scrollTop = top; element.scrollLeft = left; }
+        },
+        destroy() { lifetime.abort(); resize.disconnect(); inputObserver.disconnect(); window.clearTimeout(roTimer); }
+    } satisfies FullView;
 }

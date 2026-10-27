@@ -5,3 +5,9 @@ package.zip
 .DS_Store
 .playwright-cli/
 .pw-mobile.json
+
+backups/
+reports/
+package.zip
+.env
+.env.*
