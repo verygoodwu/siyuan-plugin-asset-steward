@@ -133,3 +133,66 @@
 .asm-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 90; align-items: center; justify-content: center; }
 .asm-dlg { background: #fff; border-radius: 16px; padding: 22px; max-width: 92vw; }
 .asm-sync-notice{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 12px;border:1px solid #f0d28a;border-radius:8px;background:#fff8e6;color:#745b15;font-size:13px}.asm-sync-notice button{padding:5px 10px;border:1px solid #d6b75e;border-radius:6px;background:white;color:inherit;cursor:pointer}
+.asm-cashflow { color:#18344e; font-size:14px; line-height:1.6; }
+.asm-cashflow .card { background:#fff; border:1px solid #dce7f1; border-radius:12px; padding:16px; }
+.asm-cashflow input,.asm-cashflow select,.asm-cashflow textarea { border:1px solid #cbd9e7; border-radius:6px; padding:7px; color:#18344e; background:#fff; font:inherit; box-sizing:border-box; }
+.asm-cashflow input[type=checkbox] { width:18px; height:18px; }
+.asm-cashflow td input:not([type=checkbox]) { max-width:150px; display:block; margin:3px 0; }
+.asm-cashflow label { display:inline-flex; flex-direction:column; gap:4px; margin:4px; }
+.asm-cashflow table { border-collapse:collapse; width:100%; min-width:680px; }
+.asm-cashflow th,.asm-cashflow td { padding:9px; text-align:left; border-bottom:1px solid #e5edf4; }
+.asm-cashflow button { background:#eaf3ff; border:1px solid #bbd2ee; color:#16477f; border-radius:6px; padding:7px 10px; cursor:pointer; margin:3px; white-space:nowrap; }
+.asm-cashflow button:disabled { opacity:.5; cursor:default; }
+.asm-cashflow .form-row { display:flex; flex-wrap:wrap; gap:8px; }
+.asm-cashflow small { color:#64748b; display:inline-block; }
+.asm-cashflow summary { cursor:pointer; padding:10px; background:#edf5ff; border-radius:8px; }
+.asm-cashflow .up { color:#16835a; } .asm-cashflow .down { color:#bd3c46; }
+.cf-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.asm-cashflow .cf-heading h3,.cf-housing h3 { font-size:16px; color:#20334d; margin:0; font-weight:650; }
+.cf-heading h4 { font-size:15px; margin:0 0 3px; color:#20334d; }
+.cf-heading p,.cf-muted { margin:5px 0; font-size:12px; color:#7b899e; line-height:1.7; }
+.cf-badge { border-radius:7px; padding:5px 10px; background:#edf3ff; color:#3d659f; font-size:12px; white-space:nowrap; }
+.cf-badge.is-income { background:#eaf8f1; color:#16845f; }.cf-badge.is-warning { background:#fff0ed; color:#bd4538; }
+.cf-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; padding:8px 0 18px; }
+.cf-metrics>div { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.cf-metrics span { color:#7b899e; font-size:12px; }.cf-metrics strong { font-size:20px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cf-summary-note { display:flex; gap:20px; flex-wrap:wrap; border-top:1px solid #e9eef5; padding-top:12px; color:#66768e; font-size:12px; }
+.cf-manager { margin:14px 0; }.cf-flow-list { display:grid; gap:16px; margin:14px 0; }
+.cf-flow,.cf-debt { border:1px solid #e1e8f1; border-radius:12px; padding:18px; background:#fff; min-width:0; }
+.asm-cashflow .cf-form-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px 16px; margin:16px 0; }
+.asm-cashflow .cf-form-grid label,.asm-cashflow .cf-paybar label { display:flex; flex-direction:column; gap:7px; margin:0; min-width:0; font-size:12px; color:#718098; }
+.asm-cashflow .cf-form-grid input,.asm-cashflow .cf-form-grid select { width:100%; min-width:0; padding:9px 10px; font-size:13px; height:39px; }
+.asm-cashflow .cf-checks { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }.asm-cashflow .cf-checks label { flex-direction:row; align-items:center; gap:6px; white-space:nowrap; }
+.cf-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid #edf0f5; padding-top:12px; }
+.cf-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }.asm-cashflow .cf-actions button { margin:0; padding:8px 13px; }
+.cf-paybar { display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; padding:14px; border-radius:9px; background:#f6f8fc; margin:14px 0; }
+.cf-paybar input,.cf-paybar select { min-height:39px; }.cf-debt-list { display:grid; gap:16px; }
+.cf-next { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:14px 0 20px; }.cf-next>div { display:flex; flex-direction:column; gap:6px; }.cf-next span { color:#7b899e; font-size:12px; }.cf-next strong { font-size:16px; }
+.cf-schedule-wrap { overflow:auto; margin:16px 0; }.asm-cashflow .cf-schedule th { white-space:nowrap; }.asm-cashflow .cf-schedule td { white-space:nowrap; font-size:13px; }
+.cf-asset-pair { display:flex; flex-direction:column; gap:9px; font-size:13px; }.cf-asset-pair span { display:flex; justify-content:space-between; gap:10px; color:#7b899e; }.cf-asset-pair b { font-size:17px; color:#202936; white-space:nowrap; }
+.cf-kpi-note { color:#7b899e; font-size:12px; margin-top:8px; line-height:1.8; }.cf-debt-alert { margin:14px 0; }.cf-debt-alert>div { display:flex; justify-content:space-between; gap:14px; padding:8px 0; font-size:13px; flex-wrap:wrap; }.cf-debt-alert span { color:#7b899e; }
+@media(max-width:1100px) { .asm-cashflow .cf-form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.cf-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }.asm-full .grid[style*="repeat(4"] { grid-template-columns:repeat(2,minmax(0,1fr))!important; } }
+@media(max-width:600px) { .asm-cashflow .card { padding:14px; }.cf-flow,.cf-debt { padding:14px; }.asm-cashflow .cf-form-grid { grid-template-columns:minmax(0,1fr); gap:12px; }.cf-next { grid-template-columns:minmax(0,1fr); gap:12px; }.cf-metrics strong { font-size:17px; }.cf-heading { gap:10px; }.cf-paybar { align-items:stretch; flex-direction:column; }.cf-footer { align-items:stretch; flex-direction:column; }.cf-actions button { flex:1; }.asm-cashflow input,.asm-cashflow select { max-width:100%; }.cf-asset-pair b { font-size:15px; } }
+.asm-cashflow .cf-flow { padding:16px 18px; }
+.asm-cashflow .cf-flow>.cf-heading { margin-bottom:4px; }
+.asm-cashflow .cf-editor { margin:8px 0; }
+.asm-cashflow .cf-editor>summary { display:list-item; width:fit-content; background:transparent; color:#537298; padding:3px 0; font-size:12px; border-radius:0; }
+.asm-cashflow .cf-editor[open] { border-top:1px solid #edf0f5; border-bottom:1px solid #edf0f5; padding:10px 0 16px; }
+.asm-cashflow .cf-flow>.cf-footer { border-top:0; padding-top:4px; }
+.asm-cashflow .cf-flow-list { gap:10px; }
+.cf-payment-dialog { border:1px solid #dbe5ef; border-radius:14px; padding:24px; width:min(440px,calc(100vw - 64px)); color:#20334d; box-shadow:0 20px 80px #193b6226; }
+.cf-payment-dialog::backdrop { background:#172c4766; }
+.cf-payment-dialog .cf-paybar { flex-direction:column; align-items:stretch; }
+.cf-payment-dialog .cf-actions { justify-content:flex-end; }
+.cf-payment-inline { margin-top:10px; }.asm-cashflow .cf-payment-inline>summary { background:#edf3ff; width:fit-content; padding:8px 12px; }
+.asm-cashflow .cf-explanation { margin:12px 0 0; }.asm-cashflow .cf-explanation>summary { background:none; color:#7b899e; font-size:12px; padding:4px 0; }
+.asm-full .cf-settings { float:right; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; border:1px solid #dfe7f1; background:#fff; color:#75859c; border-radius:10px; cursor:pointer; font-size:24px; line-height:1; }
+.asm-full .cf-settings:hover { background:#f0f5fc; color:#3b74bf; }
+.asm-full .cf-settings.is-active { background:#e9f1ff; border-color:#bcd1ef; color:#3072c5; }
+.asm-cashflow .cf-debt-section>summary { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:0; background:transparent; color:#20334d; list-style:none; }
+.asm-cashflow .cf-debt-section>summary::-webkit-details-marker { display:none; }
+.asm-cashflow .cf-debt-section>summary h3 { margin:0; font-size:16px; }
+.asm-cashflow .cf-debt-section>summary p { margin:5px 0 0; color:#7b899e; font-size:12px; }
+.cf-debt-section .cf-fold-arrow { color:#7b899e; font-size:18px; transition:transform .15s; }
+.cf-debt-section[open]>summary .cf-fold-arrow { transform:rotate(90deg); }
+.cf-debt-section[open]>.cf-debt-list { margin-top:18px; }

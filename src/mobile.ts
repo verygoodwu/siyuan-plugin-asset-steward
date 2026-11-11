@@ -4,6 +4,8 @@
  */
 import { AppState, Tx, today } from "./state";
 import type { FullView } from "./full";
+import { mountCashflow, cashflowSummary } from "./cashflow-view";
+import { mountDebtPlans } from "./debt-view";
 
 export interface MobileHost {
     state: AppState;
@@ -77,6 +79,7 @@ export function mountMobile(el: HTMLElement, H: MobileHost): FullView {
         <!-- ========= 总览（M2） ========= -->
         <div class="asm-m-page" data-p="dash">
           <h3>资产总览</h3><div class="asm-m-stats" data-role="stats"></div>
+          <div data-role="housing"></div>
           <h3>近期流水</h3><div data-role="recent"></div>
         </div>
 
@@ -88,11 +91,8 @@ export function mountMobile(el: HTMLElement, H: MobileHost): FullView {
 
         <!-- ========= 更多 ========= -->
         <div class="asm-m-page" data-p="more">
-          <div class="asm-m-empty">
-            <div class="big">⚙️</div>
-            <b>更多</b>
-            <div>资产编辑、规划表单与报表请在桌面端使用；<br>手机端能力将逐步开放。</div>
-          </div>
+          <div data-role="planning"></div>
+          <div data-role="debts"></div>
         </div>
       </div>
 
@@ -103,6 +103,8 @@ export function mountMobile(el: HTMLElement, H: MobileHost): FullView {
     </div>`;
 
     const q = <T extends HTMLElement>(r: string) => el.querySelector(`[data-role="${r}"]`) as T;
+    const planning = mountCashflow(q("planning"), H);
+    const debts = mountDebtPlans(q("debts"), { ...H, onSaved: summaries });
 
     /* ---------- 页签切换 ---------- */
     el.querySelectorAll(".asm-m-tabbar button").forEach(b => b.addEventListener("click", () => {
@@ -142,6 +144,7 @@ export function mountMobile(el: HTMLElement, H: MobileHost): FullView {
     const formKey = () => JSON.stringify([curType, curCat, acctEl.value, dateEl.value]);
     const cards = (items: Tx[]) => items.length ? items.map(tx => `<article class="asm-m-tx"><div><b>${esc(tx.c)}</b><span>${esc(tx.d)} · ${esc(tx.a)}</span><small>${esc(tx.n)}</small></div><strong class="${tx.v>=0?"up":"down"}">${money(tx.v)}</strong></article>`).join("") : '<p class="asm-m-muted">暂无匹配流水</p>';
     function summaries() {
+        q("housing").innerHTML = cashflowSummary(S);
         const monthly = S.txs.filter(tx => tx.d.startsWith(today().slice(0,7)));
         const income = monthly.filter(tx=>tx.t==="收入").reduce((s,tx)=>s+tx.v,0);
         const expense = -monthly.filter(tx=>tx.t==="支出").reduce((s,tx)=>s+tx.v,0);
@@ -198,6 +201,6 @@ export function mountMobile(el: HTMLElement, H: MobileHost): FullView {
     el.addEventListener("focusout",()=>window.setTimeout(()=>{if(!lifetime.signal.aborted)H.onIdle?.();},0),{signal:lifetime.signal});
 
     refresh();
-    return {hasDraft:()=>busy||!!amtEl.value.trim()||!!noteEl.value.trim()||formKey()!==clean,
-        refresh,destroy:()=>lifetime.abort()};
+    return {hasDraft:()=>busy||planning.hasDraft()||debts.hasDraft()||!!amtEl.value.trim()||!!noteEl.value.trim()||formKey()!==clean,
+        refresh: (discard = false) => { refresh(discard); if (discard || !planning.hasDraft()) planning.refresh(); if (discard || !debts.hasDraft()) debts.refresh(); },destroy:()=>lifetime.abort()};
 }

@@ -1,10 +1,13 @@
 /* 资产管家 · 数据层：类型、常量、种子数据、状态读写 */
 
-export interface Tx { d: string; t: "支出" | "收入"; c: string; a: string; n: string; v: number; }
-export interface Acct { name: string; type: string; g: string; bal: number; limit?: number; cap?: number; }
+export interface Tx { d: string; t: "支出" | "收入"; c: string; a: string; n: string; v: number; sourceKey?: string; principal?: number; }
+export interface Acct { name: string; type: string; g: string; bal: number; limit?: number; cap?: number; repayment?: DebtPlan; }
+export interface DebtPlan { id: string; mode: "一次性" | "分期"; firstDate: string; periods: number; fee: number; schedule: LoanPayment[]; }
 export interface Sub { n: string; v: number; cyc: string; next: string; on: boolean; cat?: string; }
 export interface Pol { n: string; v: number; cyc: string; next: string; years: string; on: boolean; }
-export interface Loan { cat: string; n: string; total: number; rate: number; method: string; months: number; paid: number; on: boolean; }
+export interface Loan { cat: string; n: string; total: number; rate: number; method: string; months: number; paid: number; on: boolean; id?: string; bankBalance?: number; balanceDate?: string; repaymentDay?: number; reprice?: string; schedule?: LoanPayment[]; }
+export interface LoanPayment { date: string; principal: number; interest: number; }
+export interface Recurring { id: string; name: string; direction: "收入" | "支出"; amount: number; day?: number; start?: string; end?: string; housing: boolean; property: string; on: boolean; }
 export interface Saving { n: string; target: number; saved: number; monthly: number; rate: number; acct: string; deadline: string; }
 export interface Snap { d: string; v: number; }
 
@@ -18,6 +21,8 @@ export interface AppState {
     savings: Saving[];
     warn: { pct: number; delSkip?: string };
     snaps: Snap[];
+    recurring?: Recurring[];
+    settlements?: string[];
 }
 
 export const STORAGE_NAME = "data.json";
@@ -95,6 +100,8 @@ export function normalizeState(saved: any): AppState {
     }
     if (saved.cats && saved.cats["支出"]) s.cats = saved.cats;
     if (saved.warn && typeof saved.warn.pct === "number") s.warn = saved.warn;
+    if (Array.isArray(saved.recurring)) s.recurring = saved.recurring;
+    if (Array.isArray(saved.settlements)) s.settlements = saved.settlements;
     return s as AppState;
 }
 
@@ -122,15 +129,17 @@ export function daysLeft(ds: string): number {
 }
 
 export function loanCalc(l: Loan): { M: number; dec: number; remainPrin: number; remainInt: number } {
+    if (l.paid >= l.months) return { M: 0, dec: 0, remainPrin: 0, remainInt: 0 };
     const r = l.rate / 100 / 12;
     if (l.method === "等额本金") {
         const mp = l.total / l.months;
-        const remainPrin = Math.max(0, l.total - mp * l.paid);
+        const remainPrin = l.bankBalance ?? Math.max(0, l.total - mp * l.paid);
         const nextPay = mp + remainPrin * r;
         let ri = 0;
-        for (let k = l.paid; k < l.months; k++) ri += (l.total - mp * k) * r;
+        for (let k = 0; k < l.months - l.paid; k++) ri += Math.max(0, remainPrin - mp * k) * r;
         return { M: nextPay, dec: mp * r, remainPrin, remainInt: Math.max(0, ri) };
     }
+    if (r === 0) return { M: l.total / l.months, dec: 0, remainPrin: l.bankBalance ?? Math.max(0, l.total * (1 - l.paid / l.months)), remainInt: 0 };
     const M = l.total * r * Math.pow(1 + r, l.months) / (Math.pow(1 + r, l.months) - 1);
     const remainPrin = l.total * (Math.pow(1 + r, l.months) - Math.pow(1 + r, l.paid)) / (Math.pow(1 + r, l.months) - 1);
     const remainInt = M * (l.months - l.paid) - remainPrin;

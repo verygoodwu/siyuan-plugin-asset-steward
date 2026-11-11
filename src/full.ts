@@ -4,10 +4,14 @@ import {
     BUDGET, isCredit, groupTypes, subMonthly, daysLeft, loanCalc, estInterest, today,
 } from "./state";
 import { drawLine, drawDoughnut, drawBars, bindChartHover } from "./charts";
+import { mountCashflow, cashflowSummary } from "./cashflow-view";
+import { mountDebtPlans } from "./debt-view";
+import { debtReminders, outstanding } from "./debt";
+import { monthlyCommitments } from "./cashflow";
 
 export interface FullHost {
     state: AppState;
-    save(): void;
+    save(): void | Promise<boolean>;
     toast(msg: string, type?: string): void;
     renderDock?(): void;
     canMutate?(): boolean;
@@ -54,7 +58,7 @@ export function mountFull(el: HTMLElement, H: FullHost) {
           <button data-pg="plan">📅 规划</button>
           <button data-pg="report">📈 报表</button>
         </div>
-        <div class="foot">资产管家 v1.0 · 数据保存在思源笔记<br>多端同步 · 本地优先</div>
+        <div class="foot">资产管家 v1.3 · 数据保存在思源笔记<br>多端同步 · 本地优先</div>
       </aside>
       <main class="main">
         <section class="page active" id="as-p-dash"></section>
@@ -189,6 +193,7 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         H.toast("已记账 " + money(Math.abs(v)));
     }
     function editTx(i: number) {
+        if (S.txs[i].sourceKey) { H.toast("计划生成的流水不可直接修改，以免与还款余额不一致", "error"); return; }
         const x = S.txs[i]; editing = i;
         curType = x.t; curCat = x.c;
         el.querySelectorAll("#as-quick-tpl .chip").forEach(c => c.classList.toggle("on", (c as HTMLElement).dataset.a === x.t));
@@ -371,7 +376,7 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         const liab = S.accounts.filter(a => a.bal < 0).reduce((s, a) => s + a.bal, 0);
         const net = asset + liab;
         pg.innerHTML = `
-        <h2>资产与负债 <button class="btn ghost" style="float:right;padding:6px 16px" data-act="toggleAssetEdit">${assetEditMode ? "✅ 完成" : "✏️ 编辑"}</button></h2>
+        <h2>资产与负债 <button class="cf-settings ${assetEditMode ? "is-active" : ""}" data-act="toggleAssetEdit" title="${assetEditMode ? "完成编辑" : "编辑资产与负债"}" aria-label="${assetEditMode ? "完成编辑" : "编辑资产与负债"}" aria-pressed="${assetEditMode}">⚙</button></h2>
         <div class="grid" style="grid-template-columns:repeat(4,1fr)">
           <div class="card"><h3>总资产</h3><div class="kpi">${money(asset)}</div></div>
           <div class="card"><h3>总负债</h3><div class="kpi down">-${money(Math.abs(liab))}</div></div>
@@ -403,6 +408,8 @@ export function mountFull(el: HTMLElement, H: FullHost) {
           <div style="font-weight:700;margin-bottom:6px">还没有任何资产或负债</div>
           <div style="color:var(--sub);font-size:13px;line-height:1.8">点击右上角 <b>✏️ 编辑</b>，在对应分组下「＋ 添加」你的银行卡、支付宝、花呗等账户<br>添加后即可记账、看净资产趋势和消费报表</div>
         </div>`}`;
+        pg.insertAdjacentHTML("beforeend", '<div id="as-debt-plans"></div>');
+        mountDebtPlans($("as-debt-plans")!, { ...H, onSaved: renderAssetsPage }, assetEditMode);
     }
 
     /* ---------- 规划页 ---------- */
@@ -413,6 +420,7 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         const loanM = S.loans.filter(l => l.on).reduce((s, l) => s + loanCalc(l).M, 0);
         pg.innerHTML = `
         <h2>规划 <span class="tag a">订阅 · 保单 · 贷款 · 储蓄</span></h2>
+        <div id="as-cashflow"></div>
         <div class="card"><h3>📺 订阅 &amp; 固定支出 <span class="num" style="float:right;color:var(--ink)">启用中 月均 ${money(subM)}</span></h3>
           <div class="form-row">
             <select id="as-sub-cat" style="width:100px"><option>订阅</option><option>房租</option><option>水电燃气</option><option>物业</option><option>其他固定</option></select>
@@ -471,8 +479,8 @@ export function mountFull(el: HTMLElement, H: FullHost) {
             const col = r >= 100 ? "#22c55e" : r >= 60 ? "#3b82f6" : "#f59e0b";
             const name = l.n ? l.cat + " · " + l.n : l.cat;
             const mTxt = l.method === "等额本金"
-                ? `下期月供 <b style="color:var(--ink)">${money(c.M)}</b>，此后每月递减 ${money(c.dec)}（等额本金）`
-                : `月供 <b style="color:var(--ink)">${money(c.M)}</b>（等额本息）`;
+                ? `参数试算月供 <b style="color:var(--ink)">${money(c.M)}</b>，预计每月递减 ${money(c.dec)}（等额本金；实际金额见银行账单）`
+                : `参数试算月供 <b style="color:var(--ink)">${money(c.M)}</b>（等额本息；实际金额见银行账单）`;
             if (lnEditIdx === i) {
                 const fld = (label: string, inner: string) => `<label style="display:flex;flex-direction:column;gap:3px"><small style="color:var(--sub);font-size:11.5px">${label}</small>${inner}</label>`;
                 return `<div style="background:#fafbfd;border-radius:10px;padding:12px;margin:10px 0">
@@ -559,6 +567,7 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         })()}</div></div>`;
 
         const dateInp = $("as-sub-next") as HTMLInputElement;
+        mountCashflow($("as-cashflow")!, H);
         if (dateInp && !dateInp.value) dateInp.value = today(30);
     }
 
@@ -637,15 +646,19 @@ export function mountFull(el: HTMLElement, H: FullHost) {
         const polM = S.policies.filter(p => p.on).reduce((s, x) => s + subMonthly(x.v, x.cyc), 0);
         const loanM = S.loans.filter(l => l.on).reduce((s, l) => s + loanCalc(l).M, 0);
         const w = warnings();
+        const commitments = monthlyCommitments(S, today().slice(0,7));
+        const debtTasks = debtReminders(S);
         const dueSubs = S.subs.filter(s => s.on && daysLeft(s.next) >= 0 && daysLeft(s.next) <= 7);
         pg.innerHTML = `
         <h2>总览</h2>
+        ${cashflowSummary(S)}
+        ${debtTasks.length ? `<div class="card cf-debt-alert"><h3>负债还款提醒</h3>${debtTasks.map(({account:a,next:p})=>`<div><b>${esc(a.name)}</b><span>${p ? `${p.date} · 应还 ${money(p.principal+p.interest)} · ${p.date<today()?"已到期，待确认":p.date===today()?"今天还款":"待还款"}` : "尚未设置还款日期和计划"}</span></div>`).join("")}</div>` : ""}
         <div class="grid" style="grid-template-columns:repeat(4,1fr)">
           <div class="card"><h3>净资产</h3><div class="kpi">${money(net)}</div></div>
-          <div class="card"><h3>总资产 / 总负债</h3><div class="kpi" style="font-size:17px"><span>${money(asset)}</span><span class="down" style="font-size:15px">　负债 -${money(Math.abs(liab))}</span></div></div>
+          <div class="card"><h3>总资产 / 总负债</h3><div class="cf-asset-pair"><span>资产 <b>${money(asset)}</b></span><span>负债 <b class="down">-${money(Math.abs(liab))}</b></span></div></div>
           <div class="card"><h3>本月支出 / 预算 ${money(BUDGET)}</h3><div class="kpi">${money(mo.exp)}<small>${mo.exp > BUDGET ? `<span class="down">超支 ${money(mo.exp - BUDGET)}</span>` : "剩余 " + money(BUDGET - mo.exp)}</small></div>
             <div style="height:8px;background:#eef2f7;border-radius:6px;margin-top:8px"><div style="width:${r}%;height:100%;border-radius:6px;background:${r >= 100 ? "#ef4444" : "linear-gradient(90deg,#3b82f6,#60a5fa)"}"></div></div></div>
-          <div class="card"><h3>每月固定负担</h3><div class="kpi" style="font-size:22px">${money(subM + polM + loanM)}</div><small style="color:var(--sub)">📺 ${Math.round(subM).toLocaleString()} · 🛡️ ${Math.round(polM).toLocaleString()} · 🏦 ${Math.round(loanM).toLocaleString()}（不含储蓄）</small></div>
+          <div class="card"><h3>本月固定支出计划</h3><div class="kpi" style="font-size:22px">${commitments.missing ? "待补账单" : money(commitments.total)}</div><div class="cf-kpi-note">${commitments.missing ? "已知支出 " + money(commitments.total) + "，房贷账单待补" : "含固定支出、保单及还款计划"}<br>固定收入 ${money(commitments.income)} / 月</div></div>
         </div>
         <div class="grid" style="grid-template-columns:2fr 1fr;margin-top:14px">
           <div class="card"><h3>净资产趋势（每日快照 · 打开思源自动记录）</h3><canvas id="as-c-net" height="150"></canvas></div>
@@ -853,9 +866,9 @@ export function mountFull(el: HTMLElement, H: FullHost) {
             case "catClose": ($("as-cat") as HTMLElement).style.display = "none"; break;
             case "txAdd": addTx(); break;
             case "editTx": editTx(i); break;
-            case "delTx": confirmDel("删除这笔流水？", () => { const x = S.txs[i]; const a = S.accounts.find(ac => ac.name === x.a); if (a) a.bal -= x.v; S.txs.splice(i, 1); H.save(); renderTxTable(); recordSnap(); H.renderDock?.(); }); break;
+            case "delTx": if (S.txs[i].sourceKey) { H.toast("计划生成的流水不可直接删除，以免与计划和贷款余额不一致", "error"); break; } confirmDel("删除这笔流水？", () => { const x = S.txs[i]; const a = S.accounts.find(ac => ac.name === x.a); if (a) a.bal -= x.v; S.txs.splice(i, 1); H.save(); renderTxTable(); recordSnap(); H.renderDock?.(); }); break;
             case "csv": exportCSV(); break;
-            case "clearTx": confirmDel("清空全部流水？", () => { S.txs = []; H.save(); renderTxTable(); recordSnap(); H.renderDock?.(); }); break;
+            case "clearTx": if (S.txs.some(t => t.sourceKey)) { H.toast("包含计划收付流水，不能直接清空", "error"); break; } confirmDel("清空全部流水？", () => { S.txs = []; H.save(); renderTxTable(); recordSnap(); H.renderDock?.(); }); break;
             case "toggleAssetEdit":
                 assetEditMode = !assetEditMode;
                 inlineAddGroup = null; inlineEditIdx = null;

@@ -1,6 +1,6 @@
 {
   "name": "siyuan-plugin-asset-steward",
-  "version": "1.1.0",
+  "version": "1.3.5",
   "private": true,
   "scripts": {
     "dev": "vite build --watch",
